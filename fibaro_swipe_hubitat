@@ -137,7 +137,7 @@ def configure() {
 	
 	sendEvent(name: "status", value: "Configuring...")
 	
-	if (getAttrValue("pushable") == null) {		
+	if (getAttrValue("pushed") == null) {		
 		sendEvent(name: "pushed", value: 1)
 		sendEvent(name: "numberOfButtons", value: gestures.size())
 		sendEvent(name: "holdableButton", value: false)
