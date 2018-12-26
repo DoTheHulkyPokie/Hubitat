@@ -17,7 +17,7 @@ metadata {
     definition (name: "Fibaro Swipe ZW5", namespace: "FibarGroup", author: "Fibar Group") {
         capability "Actuator"
         capability "Battery"
-        capability "Button"
+        capability "PushableButton"
         capability "Switch"
         capability "Configuration"
         capability "Power Source"
@@ -230,7 +230,7 @@ def getFileName(url, button) {
 }
 
 
-def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpNotification cmd) {
+def zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
     logging("${device.displayName} woke up", "info")
     def cmdsSet = []
     def cmdsGet = []
@@ -267,7 +267,7 @@ def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpNotification cmd) {
     return results
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.configurationv2.ConfigurationReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd) {
     def paramKey = parameterMap().find( {it.num == cmd.parameterNumber as Integer} ).key
     logging("${device.displayName} - Parameter ${paramKey} value is ${cmd.scaledConfigurationValue} expected " + state."$paramKey"?.value, "info")
 
@@ -277,12 +277,12 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv2.ConfigurationReport 
 
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationRejectedRequest cmd) {
+def zwaveEvent(hubitat.zwave.commands.applicationstatusv1.ApplicationRejectedRequest cmd) {
     logging("${device.displayName} - rejected request!","warn")
     if (device.currentValue("syncStatus") == "inProgress") { sendEvent(name: "syncStatus", value:"failed") }
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpIntervalReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpIntervalReport cmd) {
     log.debug "interval! " + cmd
 }
 
@@ -313,7 +313,7 @@ def syncCheck() {
 }
 
 //event handlers
-def zwaveEvent(physicalgraph.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
+def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
     if ((cmd.sceneNumber as Integer) in (1..4)) {
         buttonEvent((cmd.sceneNumber as Integer) + ((cmd.keyAttributes == 0)? 0:6))
     } else if ((cmd.sceneNumber as Integer) in (5..6)) {
@@ -324,7 +324,7 @@ def zwaveEvent(physicalgraph.zwave.commands.centralscenev1.CentralSceneNotificat
     }
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
     log.info "$device.displayName battery is $cmd.batteryLevel ($cmd)"
     if (cmd.batteryLevel<100) {
         sendEvent(name: "batteryStatus", value: "Battery: $cmd.batteryLevel%")
@@ -360,7 +360,7 @@ def parse(String description) {
     }
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
+def zwaveEvent(hubitat.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
     def encapsulatedCommand = cmd.encapsulatedCommand(cmdVersions())
     if (encapsulatedCommand) {
         logging("${device.displayName} - Parsed SecurityMessageEncapsulation into: ${encapsulatedCommand}")
@@ -370,7 +370,7 @@ def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulat
     }
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
+def zwaveEvent(hubitat.zwave.commands.crc16encapv1.Crc16Encap cmd) {
     def version = cmdVersions()[cmd.commandClass as Integer]
     def ccObj = version ? zwave.commandClass(cmd.commandClass, version) : zwave.commandClass(cmd.commandClass)
     def encapsulatedCommand = ccObj?.command(cmd.command)?.parse(cmd.data)
@@ -382,7 +382,7 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
     }
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
+def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
     def encapsulatedCommand = cmd.encapsulatedCommand(cmdVersions())
     if (encapsulatedCommand) {
         logging("${device.displayName} - Parsed MultiChannelCmdEncap ${encapsulatedCommand}")
@@ -392,39 +392,39 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
     }
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.securityv1.NetworkKeyVerify cmd) {
+def zwaveEvent(hubitat.zwave.commands.securityv1.NetworkKeyVerify cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityCommandsSupportedReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.securityv1.SecurityCommandsSupportedReport cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecuritySchemeReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.securityv1.SecuritySchemeReport cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.multichannelassociationv2.MultiChannelAssociationGroupingsReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.multichannelassociationv2.MultiChannelAssociationGroupingsReport cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.deviceresetlocallyv1.DeviceResetLocallyNotification cmd) {
+def zwaveEvent(hubitat.zwave.commands.deviceresetlocallyv1.DeviceResetLocallyNotification cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionCommandClassReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.versionv1.VersionCommandClassReport cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.powerlevelv1.PowerlevelReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.powerlevelv1.PowerlevelReport cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
     logging cmd
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.associationgrpinfov1.AssociationGroupCommandListReport cmd) {
+def zwaveEvent(hubitat.zwave.commands.associationgrpinfov1.AssociationGroupCommandListReport cmd) {
     logging cmd
 }
 
@@ -434,22 +434,22 @@ private logging(text, type = "debug") {
     }
 }
 
-private secEncap(physicalgraph.zwave.Command cmd) {
+private secEncap(hubitat.zwave.Command cmd) {
     logging("${device.displayName} - encapsulating command using Secure Encapsulation, command: $cmd","info")
     zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
 }
 
-private crcEncap(physicalgraph.zwave.Command cmd) {
+private crcEncap(hubitat.zwave.Command cmd) {
     logging("${device.displayName} - encapsulating command using CRC16 Encapsulation, command: $cmd","info")
     zwave.crc16EncapV1.crc16Encap().encapsulate(cmd).format()
 }
 
-private multiEncap(physicalgraph.zwave.Command cmd, Integer ep) {
+private multiEncap(hubitat.zwave.Command cmd, Integer ep) {
     logging("${device.displayName} - encapsulating command using Multi Channel Encapsulation, ep: $ep command: $cmd","info")
     zwave.multiChannelV3.multiChannelCmdEncap(destinationEndPoint:ep).encapsulate(cmd)
 }
 
-private encap(physicalgraph.zwave.Command cmd) {
+private encap(hubitat.zwave.Command cmd) {
     if (zwaveInfo.zw.contains("s")) {
         secEncap(cmd)
     } else if (zwaveInfo.cc.contains("56")){
@@ -460,7 +460,7 @@ private encap(physicalgraph.zwave.Command cmd) {
     }
 }
 
-private encap(physicalgraph.zwave.Command cmd, Integer ep) {
+private encap(hubitat.zwave.Command cmd, Integer ep) {
     encap(multiEncap(cmd, ep))
 }
 
