@@ -372,7 +372,7 @@ def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cm
 	
 	if (gesture) {
 		def status = "${gesture.name} / Button ${gesture.btnNum} Pushed"
-		result << createEvent(createEventMap("pushable", gesture.btnNum, true, status))
+		result << createEvent(createEventMap("pushed", gesture.btnNum, true, status))
 					
 		result << createEvent(createEventMap("status", status, false))
 		
