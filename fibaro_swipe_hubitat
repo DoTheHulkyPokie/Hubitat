@@ -1,541 +1,792 @@
 /**
- *  FIBARO Swipe
+ *  Fibaro Swipe Gesture Controller v1.0
+ *  (Model: FGGC-001)
+ *
+ *  Author: 
+ *    Kevin LaFramboise (krlaframboise)
+ *
+ *
+ *  Changelog:
+ *
+ *    1.0 (08/30/2017)
+ *      - Initial Release
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
- *	  http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def buttons = ["up","down","clockwise","left","right","counterClockwise"]
-
 metadata {
-    definition (name: "Fibaro Swipe ZW5", namespace: "FibarGroup", author: "Fibar Group") {
-        capability "Actuator"
-        capability "Battery"
-        capability "PushableButton"
-        capability "Switch"
-        capability "Configuration"
-        capability "Power Source"
-        capability "Power Meter"
+	definition (
+		name: "Fibaro Swipe Gesture Controller", 
+		namespace: "krlaframboise", 
+		author: "Kevin LaFramboise"
+	) {
+		capability "Sensor"
+		capability "PushableButton"
+		capability "Battery"
+		capability "Configuration"
+		capability "Refresh"
 
-        attribute "switch1", "string"
-        attribute "switch2", "string"
-        attribute "batteryStatus", "string"
+		attribute "status", "string"
+		attribute "lastCheckin", "string"
+		attribute "lastUpdate", "string"
+		attribute "pendingChanges", "number"
+		
+		gestures.each {
+			attribute "${it.btnNum}".length() < 2 ? "button0${it.btnNum}" : "button${it.btnNum}", "string"
+		}
+	
+		fingerprint deviceId: "2000", inClusters: "0x5E,0x85,0x59,0x80,0x5B,0x70,0x56,0x5A,0x7A,0x72,0x8E,0x73,0x98,0x86,0x84", outClusters: "", mfr:"010F", prod:"0D01", deviceJoinName: "Fibaro Swipe"
+	}
 
-        command "menuButton"
-
-        buttons.each { button ->
-            if ( button in ["clockwise","counterClockwise"] ) {
-                command "${button}Start"
-                command "${button}Stop"
-            } else {
-                command button
-            }
-        }
-
-        fingerprint mfr: "010F", prod: "0D01"
-        fingerprint deviceId: "0x1801", inClusters:"0x5E,0x59,0x80,0x56,0x7A,0x72,0x73,0x86,0x85,0x5B,0x70,0x5A,0x8E,0x84,0x98,"
-        fingerprint deviceId: "0x1801", inClusters:"0x5E,0x59,0x80,0x56,0x7A,0x72,0x73,0x86,0x85,0x5B,0x70,0x5A,0x8E,0x84"
-    }
-
-    def url = "http://fibaro-smartthings.s3-eu-west-1.amazonaws.com/swipe/"
-
-    tiles (scale: 2) {
-        standardTile("menuButton", "device.button", inactiveLabel: false, width: 2, height: 2, decoration: "flat", canChangeIcon: true) {
-            state "default", label:"SWIPE", action: "menuButton", backgroundColor: "#00A0DC", icon: "http://manuals.fibaro.com/wp-content/uploads/2017/02/swipe_icon.png"
-            state "pushed", label:"SWIPE", action: "menuButton", backgroundColor: "#FFFFFF", icon: "http://manuals.fibaro.com/wp-content/uploads/2017/02/swipe_icon.png"
-        }
-
-        buttons.each { button ->
-            if (button in ["clockwise","counterClockwise"]) {
-                def imgUrl = getFileName(url, button)
-                standardTile(button, "device.switch" + ((button == "clockwise") ? 1:2), inactiveLabel: false, width: 2, height: 2, decoration: "flat") {
-                    state "off", label:"", action: "${button}Start", backgroundColor: "#FFFFFF", icon: imgUrl
-                    state "on", label:"", action: "${button}Stop", backgroundColor: "#00A0DC", icon: imgUrl
-                }
-            } else {
-                def imgUrl = getFileName(url, button)
-                standardTile(button, "device.button", inactiveLabel: false, width: 2, height:2, decoration: "flat") {
-                    state "button", label:"", action: button, icon: imgUrl
-                }
-            }
-        }
-
-        valueTile("batteryStatus", "device.batteryStatus", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-            state "val", label: '${currentValue}'
-        }
-
-        standardTile("syncStatus", "device.syncStatus", decoration: "flat", width: 2, height: 2) {
-            def syncIconUrl = "http://fibaro-smartthings.s3-eu-west-1.amazonaws.com/keyfob/sync_icon.png"
-            state "synced", label:'OK', action:"forceSync", backgroundColor: "#00a0dc", icon: syncIconUrl
-            state "pending", label:"Pending", action:"forceSync", backgroundColor: "#153591", icon: syncIconUrl
-            state "inProgress", label:"Syncing", action:"forceSync", backgroundColor: "#44b621", icon: syncIconUrl
-            state "incomplete", label:"Incomplete", action:"forceSync", backgroundColor: "#f1d801", icon: syncIconUrl
-            state "failed", label:"Failed", action:"forceSync", backgroundColor: "#bc2323", icon: syncIconUrl
-            state "force", label:"Force", action:"forceSync", backgroundColor: "#e86d13", icon: syncIconUrl
-        }
-
-        main "menuButton"
-        details(buttons.plus(6,"batteryStatus").plus(7,"syncStatus"))
-    }
-
-    preferences {
-        input (
-                title: "Fibaro Swipe manual",
-                description: "Tap to view the manual.",
-                image: "http://manuals.fibaro.com/wp-content/uploads/2017/02/swipe_icon.png",
-                url: "http://manuals.fibaro.com/content/manuals/en/FGGC-001/FGGC-001-EN-T-v1.0.pdf",
-                type: "href",
-                element: "href"
-        )
-
-        parameterMap().findAll( {!it.key.contains('param')} ).each {
-            getPrefsFor(it)
-        }
-
-        input (
-                title: "Scenes sent to the controller",
-                description: "Defines which actions result in sending scenes to the HUB.",
-                type: "paragraph",
-                element: "paragraph"
-        )
-
-        input ( name: "flickUp", title: "UP gesture" ,type: "boolean", defaultValue: true, required: false )
-        input ( name: "flickDown", title: "DOWN gesture" ,type: "boolean", defaultValue: true, required: false )
-        input ( name: "flickLeft", title: "LEFT gesture" ,type: "boolean", defaultValue: true, required: false )
-        input ( name: "flickRight", title: "RIGHT gesture" ,type: "boolean", defaultValue: true, required: false )
-        input ( name: "clockwise", title: "Clockwise gesture" ,type: "boolean", defaultValue: true, required: false )
-        input ( name: "counterClockwise", title: "Counter-clockwise gesture" ,type: "boolean", defaultValue: true, required: false )
-        input ( name: "menuButton", type: "enum", options: [
-                1: "UP gesture",
-                2: "DOWN gesture",
-                3: "LEFT gesture",
-                4: "RIGHT gesture"], title: "Gesture to be activated from main menu:", required: false, defaultValue: 1)
-        input ( name: "logging", title: "Logging", type: "boolean", required: false )
-    }
+	preferences {
+		getOptionsInput(deviceOrientationParam)
+		getOptionsInput(powerSavingModeParam)
+		getOptionsInput(ledModeParam)		
+		
+		getOptionsInput("buzzer", "Buzzer Mode", buzzerSetting, buzzerOptions)
+		
+		getBoolInput("doubleSwipeEnabled", "Enable Double Swipe Gestures?", doubleSwipeEnabledSetting)
+		
+		gestures.each { gest ->
+			if (gest.seqNum) {
+				getOptionsInput("seq${gest.seqNum}", "${gest.name} Gestures", getSeqSetting(gest.seqNum), seqOptions)
+			}
+		}
+				
+		getOptionsInput("wakeUpInterval", "Checkin Interval", checkinIntervalSetting, checkinIntervalOptions)
+		
+		getOptionsInput("batteryReportingInterval", "Battery Reporting Interval", batteryReportingIntervalSetting, checkinIntervalOptions)
+				
+		getBoolInput("debugOutput", "Enable debug logging?", debugOutputSetting)
+	}
 }
 
-//UI Support functions
-def getPrefsFor(parameter) {
-    input (
-            title: "${parameter.num}. ${parameter.title}",
-            description: parameter.descr,
-            type: "paragraph",
-            element: "paragraph"
-    )
-    input (
-            name: parameter.key,
-            title: null,
-            type: parameter.type,
-            options: parameter.options,
-            range: (parameter.min != null && parameter.max != null) ? "${parameter.min}..${parameter.max}" : null,
-            defaultValue: parameter.def,
-            required: false
-    )
+private getTextInput(name, title, defaultVal) {
+	input "${name}", "text", 
+		title: "${title}:", 
+		defaultValue: defaultVal, 
+		required: false
 }
 
-def menuButton() {
-    if (!settings.menuButton) {
-        buttonEvent(1)
-    } else {
-        buttonEvent(settings.menuButton as Integer)
-    }
-}
-def up() { buttonEvent(1) }
-def down() { buttonEvent(2) }
-def left() { buttonEvent(3) }
-def right() { buttonEvent(4) }
-def clockwiseStart() { log.info "Start"; buttonEvent(5); switchEvent(1,"on"); }
-def clockwiseStop() { switchEvent(1,"off") }
-def counterClockwiseStart() { buttonEvent(6); switchEvent(2,"on"); }
-def counterClockwiseStop() { switchEvent(2,"off") }
-
-def buttonEvent(Integer number) {
-    def descriptionList = [
-            "UP gesture",
-            "DOWN gesture",
-            "LEFT gesture",
-            "RIGHT gesture",
-            "Clockwise gesture",
-            "Counter-clockwise gesture"]
-    logging("${device.displayName} - Sending buttonEvent $number","info")
-    sendEvent(name: "button", value: "pushed", data: [buttonNumber: number], descriptionText: "${descriptionList[number-1]} detected", isStateChange: true)
+private getBoolInput(name, title, defaultVal) {
+	input "${name}", "bool", 
+		title: "${title}", 
+		defaultValue: defaultVal, 
+		required: false
 }
 
-def switchEvent(Integer number, String value) {
-    logging("${device.displayName} - Sending switchEvent $number $value","info")
-    sendEvent(name: "switch$number", value: value, data: [switchNumber: number], isStateChange: true, displayed: false)
+private getOptionsInput(name, title, defaultVal, options) {
+	return getOptionsInput([
+		prefName: "${name}",
+		name: "${title}",
+		val: defaultVal,
+		options: options
+	])
+}
+
+private getOptionsInput(param) {
+	input "${param.prefName}", "enum",
+		title: "${param.name}:",
+		defaultValue: "${param.val}",
+		required: false,
+		displayDuringSetup: true,
+		options: param.options?.collect { name, val -> name }
 }
 
 def updated() {
-    if ( state.lastUpdated && (now() - state.lastUpdated) < 500 ) return
-    logging("${device.displayName} - Executing updated()","info")
-    sendEvent(name: "numberOfButtons", value: 16)
-    def syncRequired = 0
-    def value
-    parameterMap().each {
-        if(settings."$it.key" != null || it.key in ["param10"] ) {
-            if (it.key == "param10") {
-                if (state.param10 == null) {value = 63}
-                else {
-                    value = calcParam10()}
-            } else (value = settings."$it.key")
-
-            if (state."$it.key" == null) {
-                state."$it.key" = [value: null, state: "synced"]
-            }
-            if (state."$it.key".value != value as Integer) {
-                syncRequired = 1
-                state."$it.key".value = value as Integer
-                state."$it.key".state = "notSynced"
-            }
-        }
-    }
-
-    if ( syncRequired !=0 ) { sendEvent(name: "syncStatus", value: "pending") }
-    state.lastUpdated = now()
+	state.lastUpdated = new Date().time
+	logTrace "updated()"
+	
+	syncSettingAttributes()
+	
+	if (checkForPendingChanges()) {
+		logForceWakeupMessage("The configuration will be updated the next time the device wakes up.")
+	}	
+	return []
 }
 
-def calcParam10() {
-    Integer result = 0
-    result += ((settings.flickUp == "true")? 1:0)
-    result += ((settings.flickDown == "true")? 2:0)
-    result += ((settings.flickLeft == "true")? 4:0)
-    result += ((settings.flickRight == "true")? 8:0)
-    result += ((settings.clockwise == "true")? 16:0)
-    result += ((settings.counterClockwise == "true")? 32:0)
-
-    return result
+private syncSettingAttributes() {
+	gestures.each {				
+		def labelAttr = "${it.btnNum}".length() < 2 ? "button0${it.btnNum}" : "button${it.btnNum}"
+		def labelVal = "${it.name}"
+		
+		if (!doubleSwipeEnabledSetting && it.name.contains("Double")) {
+			labelVal = "[Double Swipe Disabled]"
+		}
+		else if (it.seqNum) {
+			labelVal = "Sequence ${it.seqNum}: ${getSeqSetting(it.seqNum)}"
+		}
+				
+		if (getAttrValue(labelAttr) != labelVal) {
+			sendEvent(createEventMap(labelAttr, labelVal, false))
+		}
+	}	
 }
 
-def getFileName(url, button) {
-    def fileName
-    def result
-
-    switch (button) {
-        case "up": fileName = "swipe_white_up.png"; break;
-        case "down": fileName = "swipe_white_down.png"; break;
-        case "clockwise": fileName = "swipe_white_turnright.png"; break;
-        case "left": fileName = "swipe_white_left.png"; break;
-        case "right": fileName = "swipe_white_right.png"; break;
-        case "counterClockwise": fileName = "swipe_white_turnleft.png"; break;
-    }
-    result = url + fileName
-    return result
+def configure() {	
+	logTrace "configure()"
+	def cmds = []
+	
+	sendEvent(name: "status", value: "Configuring...")
+	
+	if (getAttrValue("button") == null) {		
+		sendEvent(name: "pushed", value: 1)
+		sendEvent(name: "numberOfButtons", value: gestures.size())
+		sendEvent(name: "holdableButton", value: false)
+		syncSettingAttributes()
+		logTrace "Waiting 1 second because this is the first time being configured"
+		cmds << "delay 1000"		
+	}
+	
+	if (state.refreshAll || state.checkinIntervalSeconds != checkinIntervalSettingSeconds) {
+		cmds << wakeUpIntervalSetCmd(checkinIntervalSettingSeconds)
+		cmds << wakeUpIntervalGetCmd()
+	}
+			
+	configParams.each { param ->	
+		cmds += updateConfigVal(param)
+	}
+	
+	if (!cmds) {
+		resetStatus()
+	}
+	return cmds ? delayBetween(cmds, 1000) : []	
 }
 
-
-def zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
-    logging("${device.displayName} woke up", "info")
-    def cmdsSet = []
-    def cmdsGet = []
-    def cmds = []
-    def cmdCount = 0
-    def results = [createEvent(descriptionText: "$device.displayName woke up", isStateChange: true)]
-    cmdsGet << zwave.batteryV1.batteryGet()
-    cmdsGet << zwave.sensorMultilevelV5.sensorMultilevelGet(sensorType: 1)
-    if (device.currentValue("syncStatus") != "synced") {
-        parameterMap().each {
-            if (device.currentValue("syncStatus") == "force") { state."$it.key".state = "notSynced" }
-            if (state."$it.key"?.value != null && state."$it.key"?.state == "notSynced") {
-                logging "it.key:" + "$it.key" + "it.key.value:" + "$it.key.value"
-                logging "it.num:" + it.num + "it.size:" + it.size
-                cmdsSet << zwave.configurationV2.configurationSet(configurationValue: intToParam(state."$it.key".value, it.size), parameterNumber: it.num, size: it.size)
-                cmdsGet << zwave.configurationV2.configurationGet(parameterNumber: it.num)
-                cmdCount = cmdCount + 1
-            }
-        }
-
-        logging("${device.displayName} - Not synced, syncing ${cmdCount} parameters", "info")
-        sendEvent(name: "syncStatus", value: "inProgress")
-        runIn((5+cmdCount*1.5), syncCheck)
-    }
-    if (cmdsSet) {
-        cmds = encapSequence(cmdsSet,500)
-        cmds << "delay 500"
-    }
-    cmds = cmds + encapSequence(cmdsGet,1000)
-    cmds << "delay "+(5000+cmdCount*1500)
-    cmds << encap(zwave.wakeUpV1.wakeUpNoMoreInformation())
-    results = results + response(cmds)
-
-    return results
+private updateConfigVal(param) {
+	def result = []	
+	if (hasPendingChange(param)) {	
+		def newVal = getParamIntVal(param)
+		logDebug "${param.name}(#${param.num}): changing ${getParamStoredIntVal(param)} to ${newVal} (${getConfigValueName(param, newVal)})"
+		result << configSetCmd(param, newVal)
+		result << configGetCmd(param)
+	}		
+	return result
 }
 
-def zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd) {
-    def paramKey = parameterMap().find( {it.num == cmd.parameterNumber as Integer} ).key
-    logging("${device.displayName} - Parameter ${paramKey} value is ${cmd.scaledConfigurationValue} expected " + state."$paramKey"?.value, "info")
-
-    if (state."$paramKey".value == cmd.scaledConfigurationValue) {
-        state."$paramKey".state = "synced"
-    }
-
+private checkForPendingChanges() {
+	def changes = 0
+	
+	if (state.checkinIntervalSeconds != checkinIntervalSettingSeconds) {
+		changes += 1
+	}
+	
+	configParams.each {
+		if (hasPendingChange(it)) {
+			changes += 1
+		}
+	}
+	
+	if (changes != getAttrValue("pendingChanges")) {
+		sendEvent(createEventMap("pendingChanges", changes, false))
+	}
+	return (changes != 0)
 }
 
-def zwaveEvent(hubitat.zwave.commands.applicationstatusv1.ApplicationRejectedRequest cmd) {
-    logging("${device.displayName} - rejected request!","warn")
-    if (device.currentValue("syncStatus") == "inProgress") { sendEvent(name: "syncStatus", value:"failed") }
+private hasPendingChange(param) {
+	return (getParamIntVal(param) != getParamStoredIntVal(param) || state.refreshAll)
 }
 
-def zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpIntervalReport cmd) {
-    log.debug "interval! " + cmd
+// Required for HealthCheck Capability, but doesn't actually do anything because this device sleeps.
+def ping() {
+	logDebug "ping()"	
+	return []
 }
 
-def syncCheck() {
-    logging("${device.displayName} - Executing syncCheck()","info")
-    def notSynced = []
-    def count = 0
-    if (device.currentValue("syncStatus") != "synced") {
-        parameterMap().each {
-            if (state."$it.key"?.state == "notSynced" ) {
-                notSynced << it
-                logging "Sync failed! Verify parameter: ${notSynced[0].num}"
-                logging "Sync $it.key " + state."$it.key"
-                sendEvent(name: "batteryStatus", value: "Sync incomplited! Check parameter nr. ${notSynced[0].num}")
-                count = count + 1
-            }
-        }
-    }
-    if (count == 0) {
-        logging("${device.displayName} - Sync Complete","info")
-        sendEvent(name: "syncStatus", value: "synced")
-    } else {
-        logging("${device.displayName} Sync Incomplete","info")
-        if (device.currentValue("syncStatus") != "failed") {
-            sendEvent(name: "syncStatus", value: "incomplete")
-        }
-    }
+def refresh() {
+	sendEvent(createEventMap("pendingChanges", configParams.size(), false))
+	state.refreshAll = true
+	logForceWakeupMessage("The sensor data will be refreshed the next time the device wakes up.")
+	return []
 }
 
-//event handlers
-def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
-    if ((cmd.sceneNumber as Integer) in (1..4)) {
-        buttonEvent((cmd.sceneNumber as Integer) + ((cmd.keyAttributes == 0)? 0:6))
-    } else if ((cmd.sceneNumber as Integer) in (5..6)) {
-        switchEvent((cmd.sceneNumber as Integer)-4, (cmd.keyAttributes == 2)? "on":"off")
-        if (cmd.keyAttributes == 2) { buttonEvent((cmd.sceneNumber as Integer) ) }
-    } else {
-        buttonEvent((cmd.sceneNumber as Integer) + 4)
-    }
-}
-
-def zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
-    log.info "$device.displayName battery is $cmd.batteryLevel ($cmd)"
-    if (cmd.batteryLevel<100) {
-        sendEvent(name: "batteryStatus", value: "Battery: $cmd.batteryLevel%")
-    } else {
-        sendEvent(name: "batteryStatus", value: "External supply")
-    }
-}
-
-/*
-####################
-## Z-Wave Toolkit ##
-####################
-*/
 def parse(String description) {
-    def result = []
-    logging("${device.displayName} - Parsing: ${description}")
-    if (description.startsWith("Err 106")) {
-        result = createEvent(
-                descriptionText: "Failed to complete the network security key exchange. If you are unable to receive data from it, you must remove it from your network and add it again.",
-                eventType: "ALERT",
-                name: "secureInclusion",
-                value: "failed",
-                displayed: true,
-        )
-    } else if (description == "updated") {
-        return null
-    } else {
-        def cmd = zwave.parse(description, cmdVersions())
-        if (cmd) {
-            logging("${device.displayName} - Parsed: ${cmd}")
-            zwaveEvent(cmd)
-        }
-    }
+	def result = []
+	// logTrace "parse: $description"
+	
+	if (!isDuplicateCommand(state.lastCheckin, 60000)) {
+		state.lastCheckin = new Date().time
+		result << createEvent(name: "lastCheckin", value: convertToLocalTimeString(new Date()), displayed: false, isStateChange: true)
+	}
+	
+	if (!description?.startsWith("Err")) {
+		def cmd = zwave.parse(description, commandClassVersions)
+		if (cmd) {
+			// logTrace "Parse: $cmd"
+			result += zwaveEvent(cmd)
+		}
+		else {
+			logDebug "Unable to parse description: $description"
+		}
+	}	
+	return result
 }
 
 def zwaveEvent(hubitat.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
-    def encapsulatedCommand = cmd.encapsulatedCommand(cmdVersions())
-    if (encapsulatedCommand) {
-        logging("${device.displayName} - Parsed SecurityMessageEncapsulation into: ${encapsulatedCommand}")
-        zwaveEvent(encapsulatedCommand)
-    } else {
-        log.warn "Unable to extract secure cmd from $cmd"
-    }
+	def result = []
+	
+	def encapCmd = cmd.encapsulatedCommand(commandClassVersions)
+	if (encapCmd) {
+		// logTrace "secure cmd: $encapCmd"
+		result += zwaveEvent(encapCmd)
+	}
+	else {
+		log.warn "Unable to extract encapsulated cmd from $cmd"	
+	}
+	return result
 }
 
 def zwaveEvent(hubitat.zwave.commands.crc16encapv1.Crc16Encap cmd) {
-    def version = cmdVersions()[cmd.commandClass as Integer]
-    def ccObj = version ? zwave.commandClass(cmd.commandClass, version) : zwave.commandClass(cmd.commandClass)
-    def encapsulatedCommand = ccObj?.command(cmd.command)?.parse(cmd.data)
-    if (encapsulatedCommand) {
-        logging("${device.displayName} - Parsed Crc16Encap into: ${encapsulatedCommand}")
-        zwaveEvent(encapsulatedCommand)
-    } else {
-        log.warn "Could not extract crc16 command from $cmd"
-    }
+	log.trace "Crc16Encap: $cmd"
+	def result = []
+	def cmdClass = getVersionSafeCmdClass(cmd.commandClass)
+	def parsedCmd = cmdClass?.command(cmd.command)?.parse(cmd.data)
+	if (parsedCmd) {
+		logTrace "Parsed crc16: ${parsedCmd}"
+		result += zwaveEvent(parsedCmd)
+	}
+	else {
+		log.warn "Unable to parse crc16encap command"
+	}
+	return result	
 }
 
-def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
-    def encapsulatedCommand = cmd.encapsulatedCommand(cmdVersions())
-    if (encapsulatedCommand) {
-        logging("${device.displayName} - Parsed MultiChannelCmdEncap ${encapsulatedCommand}")
-        zwaveEvent(encapsulatedCommand, cmd.sourceEndPoint as Integer)
-    } else {
-        log.warn "Could not extract MultiChannel command from $cmd"
-    }
+def zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
+	logTrace "WakeUpNotification: $cmd"
+	def result = []
+	
+	if (checkForPendingChanges()) {
+		result += configure()
+	}
+	
+	if (canReportBattery()) {
+		result << batteryGetCmd()
+	}
+	
+	if (result) {
+		result << "delay 1200"
+	}	
+	result << wakeUpNoMoreInfoCmd()
+	return response(result)
 }
 
-def zwaveEvent(hubitat.zwave.commands.securityv1.NetworkKeyVerify cmd) {
-    logging cmd
+def zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpIntervalReport cmd) {
+	logTrace "WakeUpIntervalReport: $cmd"
+	def result = []
+	state.checkinIntervalSeconds = cmd.seconds
+	runIn(1, finalizeConfiguration)
+	return result
 }
 
-def zwaveEvent(hubitat.zwave.commands.securityv1.SecurityCommandsSupportedReport cmd) {
-    logging cmd
+private canReportBattery() {
+	def reportEveryMS = (convertOptionSettingToInt(checkinIntervalOptions, batteryReportingIntervalSetting) * 1000)
+	
+	return (!isDuplicateCommand(state.lastBatteryReport, reportEveryMS))	
 }
 
-def zwaveEvent(hubitat.zwave.commands.securityv1.SecuritySchemeReport cmd) {
-    logging cmd
+def zwaveEvent(hubitat.zwave.Command cmd) {
+	log.warn "Unhandled Command: $cmd"
+	return []
 }
 
-def zwaveEvent(hubitat.zwave.commands.multichannelassociationv2.MultiChannelAssociationGroupingsReport cmd) {
-    logging cmd
+def zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
+	logTrace "BatteryReport: $cmd"
+	def result = []
+	
+	def val = (cmd.batteryLevel == 255 ? 1 : cmd.batteryLevel)
+	if (val > 100) {
+		val = 100
+	}
+	state.lastBatteryReport = new Date().time	
+	logDebug "Battery ${val}%"
+	
+	result << createEvent(createEventMap("battery", val, null, null, "%"))
+	
+	return result
 }
 
-def zwaveEvent(hubitat.zwave.commands.deviceresetlocallyv1.DeviceResetLocallyNotification cmd) {
-    logging cmd
+def zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd) {
+	def result = []
+	logTrace "ConfigurationReport: (paramNum: ${cmd.parameterNumber}, configValue: ${cmd.configurationValue}, size: ${cmd.size}"
+	if (getAttrValue("pendingChanges") != -1) {
+		result << createEvent(createEventMap("pendingChanges", -1, false))
+	}
+	
+	def val = convertToScaledValue(cmd.configurationValue, cmd.size)
+			
+	def configParam = configParams.find { param ->
+		param.num == cmd.parameterNumber
+	}
+	
+	if (configParam) {
+		logDebug "${configParam.name}(#${configParam.num}) = ${getConfigValueName(configParam, val)} (${val})"
+		state["configVal${cmd.parameterNumber}"] = val
+	}	
+	else {
+		logDebug "Parameter ${cmd.parameterNumber} = ${val}"
+	}
+	
+	runIn(2, finalizeConfiguration)
+	return result
 }
 
-def zwaveEvent(hubitat.zwave.commands.versionv1.VersionCommandClassReport cmd) {
-    logging cmd
+private getConfigValueName(param, val) {
+	def options = param?.name?.contains("Sequence") ? seqOptions : param?.options
+	return options?.find { it.value == val}?.key ?: "$val"
 }
 
-def zwaveEvent(hubitat.zwave.commands.powerlevelv1.PowerlevelReport cmd) {
-    logging cmd
+private convertToScaledValue(val, size) {
+	if (size == 2) {
+		return val[1] + (val[0] * 0x100)
+	}
+	else {
+		return val[0]
+	}
 }
 
-def zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
-    logging cmd
+def finalizeConfiguration() {
+	logTrace "finalizeConfiguration()"
+	
+	state.refreshAll = false
+	
+	resetStatus()
+	checkForPendingChanges()
+	
+	sendEvent(createEventMap("lastUpdate", convertToLocalTimeString(new Date()), false))	
+	return []
 }
 
-def zwaveEvent(hubitat.zwave.commands.associationgrpinfov1.AssociationGroupCommandListReport cmd) {
-    logging cmd
+def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
+	// logTrace "CentralSceneNotification:[sceneNumber:cmd.sceneNumber, keyAttributes:${cmd.keyAttributes}, sequenceNumber:${cmd.sequenceNumber}]"
+	def result = []
+		
+	def gesture = gestures.find{ it.sceneNum == cmd.sceneNumber && it.keyAttr == cmd.keyAttributes }
+	
+	if (gesture) {
+		def status = "${gesture.name} / Button ${gesture.btnNum} Pushed"
+		result << createEvent(createEventMap("button", gesture.btnNum, true, status))
+					
+		result << createEvent(createEventMap("status", status, false))
+		
+		if (!gesture?.name?.contains("Start")) {
+			runIn(3, resetStatus)
+		}
+	}
+	else {
+		log.warn "Unknown Gesture: [sceneNumber:cmd.sceneNumber, keyAttributes:${cmd.keyAttributes}, sequenceNumber:${cmd.sequenceNumber}]"
+	}
+	return result
 }
 
-private logging(text, type = "debug") {
-    if (settings.logging == "true") {
-        log."$type" text
-    }
+def resetStatus() {
+	sendEvent(createEventMap("status", "Ready", false))
 }
 
-private secEncap(hubitat.zwave.Command cmd) {
-    logging("${device.displayName} - encapsulating command using Secure Encapsulation, command: $cmd","info")
-    zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
+private wakeUpIntervalSetCmd(val) {
+	return secureCmd(zwave.wakeUpV2.wakeUpIntervalSet(seconds:val, nodeid:zwaveHubNodeId))
 }
 
-private crcEncap(hubitat.zwave.Command cmd) {
-    logging("${device.displayName} - encapsulating command using CRC16 Encapsulation, command: $cmd","info")
-    zwave.crc16EncapV1.crc16Encap().encapsulate(cmd).format()
+private wakeUpIntervalGetCmd() {
+	return secureCmd(zwave.wakeUpV2.wakeUpIntervalGet())
 }
 
-private multiEncap(hubitat.zwave.Command cmd, Integer ep) {
-    logging("${device.displayName} - encapsulating command using Multi Channel Encapsulation, ep: $ep command: $cmd","info")
-    zwave.multiChannelV3.multiChannelCmdEncap(destinationEndPoint:ep).encapsulate(cmd)
+private wakeUpNoMoreInfoCmd() {
+	return secureCmd(zwave.wakeUpV2.wakeUpNoMoreInformation())
 }
 
-private encap(hubitat.zwave.Command cmd) {
-    if (zwaveInfo.zw.contains("s")) {
-        secEncap(cmd)
-    } else if (zwaveInfo.cc.contains("56")){
-        crcEncap(cmd)
-    } else {
-        logging("${device.displayName} - no encapsulation supported for command: $cmd","info")
-        cmd.format()
-    }
+private batteryGetCmd() {
+	return secureCmd(zwave.batteryV1.batteryGet())
 }
 
-private encap(hubitat.zwave.Command cmd, Integer ep) {
-    encap(multiEncap(cmd, ep))
+private configSetCmd(param, val) {	
+	return secureCmd(zwave.configurationV2.configurationSet(parameterNumber: param.num, size: param.size, configurationValue: convertFromScaledValue(val, param.size)))
 }
 
-private encap(List encapList) {
-    encap(encapList[0], encapList[1])
+private convertFromScaledValue(val, size) {
+	if (size == 2) {
+		return [(byte) ((val >> 8) & 0xff),(byte) (val & 0xff)]
+	}
+	else {
+		return [val]
+	}
 }
 
-private encap(Map encapMap) {
-    encap(encapMap.cmd, encapMap.ep)
+private configGetCmd(param) {
+	return secureCmd(zwave.configurationV2.configurationGet(parameterNumber: param.num))
 }
 
-private encapSequence(cmds, Integer delay=250) {
-    delayBetween(cmds.collect{ encap(it) }, delay)
+private secureCmd(cmd) {
+	if (zwaveInfo?.zw?.contains("s") || ("0x98" in device.rawDescription?.split(" "))) {
+		return zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
+	}
+	else {
+		return cmd.format()
+	}	
 }
 
-private encapSequence(cmds, Integer delay, Integer ep) {
-    delayBetween(cmds.collect{ encap(it, ep) }, delay)
+private getCommandClassVersions() {
+	[	        
+		0x20: 1,	// Basic
+		0x56: 1,	// Crc16 Encap
+		0x59: 1,  // AssociationGrpInfo
+		0x5A: 1,  // DeviceResetLocally
+		0x5B: 1,	// Central Scene (2)
+		0x5E: 2,  // ZwaveplusInfo
+		0x70: 2,  // Configuration (1?)
+		0x72: 2,  // ManufacturerSpecific
+		0x73: 1,  // Powerlevel
+		0x7A: 2,	// Firmware Update Md (3)
+		0x80: 1,  // Battery
+		0x84: 2,  // WakeUp
+		0x85: 2,  // Association
+		0x86: 1,	// Version (2)
+		0x8E: 2,	// Multi Channel Association (3)
+		0x98: 1		// Security
+	]
 }
 
-private List intToParam(Long value, Integer size = 1) {
-    def result = []
-    size.times {
-        result = result.plus(0, (value & 0xFF) as Short)
-        logging "result": + result
-        logging "value: " + value
-        value = (value >> 8)
-    }
-    return result
-}
-/*
-##########################
-## Device Configuration ##
-##########################
-*/
-
-def configure() {
-    def cmds = []
-    //1. configure wakeup interval
-    cmds += zwave.wakeUpV1.wakeUpIntervalSet(seconds:21600, nodeid:zwaveHubNodeId)
-    cmds += zwave.wakeUpV1.wakeUpNoMoreInformation()
-    encapSequence(cmds, 500)
-
-}
-private Map cmdVersions() {
-    [0x59: 1, 0x80: 1, 0x56: 1, 0x72: 2, 0x73: 1, 0x98: 1, 0x86: 1, 0x85: 2, 0x5B: 1, 0x70: 2, 0x5A: 1, 0x8E: 2, 0x84: 2] //Fibaro Swipe
+private getVersionSafeCmdClass(cmdClass) {
+	def version = commandClassVersions[safeToInt(cmdClass)]
+	if (version) {
+		return zwave.commandClass(cmdClass, version)
+	}
+	else {
+		return zwave.commandClass(cmdClass)
+	}
 }
 
-private parameterMap() {[
-        [key: "orientation", num: 1, size: 1, type: "enum", options: [
-                0: "default orientation",
-                1: "180° rotation",
-                2: "90° clockwise rotation",
-                3: "90° counter-clockwise rotation"],
-         def: "0", title: "Device orientation",
-         descr: "Determines orientation of the Swipe in relation to its default position."],
-        [key: "buzzerSignaling", num: 2, size: 1, type: "enum", options: [0: "gestures detection is not signalled", 1: "gestures detection is signalled"], def: "1", title: "Buzzer - acoustic signal settings",
-         descr: "Acoustic signalling of gestures detection."],
-        [key: "buzzerMode", num: 4, size: 1, type: "enum", options: [
-                1: "only successful recognition is signalled",
-                2: "only failed recognition is signalled",
-                3: "successful and failed recognition is signalled"],
-         def: "3", title: "Buzzer - signalling result of gesture recognition",
-         descr: "Acoustic signalling of gesture recognition result."],
-        [key: "powerInterval", num: 5, size: 2, type: "number", def: 4, min: 0, max: 1080, title: "Powering mode - interval",
-         descr: "How often the device checks if the USB power supply is connected.\n0 - powering mode is not updated\n1-1080 (in minutes) - time interval"],
-        [key: "powerMode", num: 6, size: 1, type: "enum", options: [
-                0: "Standby Mode",
-                1: "Simple Mode",
-                2: "the Swipe does not enter power saving mode"],
-         def: "0", title: "Power saving mode (battery mode)",
-         descr: "Determines operation of gesture detection when battery powered.\nStandby Mode - hold gesture must be performed to exit power saving mode.\nSimple Mode - gesture recognition is always active, but only slowly performed gestures will be recognized properly"],
-        [key: "holdGesture", num: 7, size: 1, type: "enum", options: [
-                0: "Hold gesture enabled",
-                1: "Hold gesture disabled"],
-         def: "0", title: "Hold gesture to enter the menu",
-         descr: "This parameter allows to choose if the menu can be entered using the Hold gesture."],
-        [key: "param10", num: 10, size: 1, type: "number", def: 63, min: 0, max: 63, title: null, descr: null],
-]}
+// Configuration Parameters
+private getConfigParams() {
+	def params = [
+		deviceOrientationParam,
+		buzzerModeParam,
+		buzzerEnabledParam,
+		ledModeParam,
+		toggleModeParam,
+		lifelineScenesParam,
+		powerSavingModeParam
+		// poweringModeParam
+	]	
+	params += seqParams	
+	return params
+}
+
+private getSeqParams() {
+	def params = []
+	(1..6).each {
+		params << createConfigParamMap((it + 30), "Sequence ${it}", 2, null, null, (convertOptionSettingToInt(seqOptions, getSeqSetting(it))))
+	}
+	return params
+}
+
+private getDeviceOrientationParam() {
+	return createConfigParamMap(1, "Device Orientation", 1, ["Default Orientation${defaultOptionSuffix}":0, "180 Degree Rotation":1, "90 Degree Clockwise Rotation":2, "90 Degree Counter-Clockwise Rotation":3], "deviceOrientation")
+}
+
+private getPowerSavingModeParam() {
+	return createConfigParamMap(6, "Power Saving Mode", 1, ["Standby Mode (Hold Gesture Required)${defaultOptionSuffix}":0, "Simple Mode (Slow Gestures)":1, "Power Saving Disabled":2], "powerSavingMode")
+}
+
+// private getPoweringModeParam() {
+	// return createConfigParamMap(5, "Check if powered by USB every", 2,  null, "powerSavingMode")
+// }
+
+private getLedModeParam() {
+	return createConfigParamMap(3, "LED Mode", 1, ["Disabled${defaultOptionSuffix}": 0, "Enabled":1], "ledMode")
+}
+
+private getBuzzerEnabledParam() {
+	return createConfigParamMap(2, "Buzzer Enabled", 1, null, null, (convertOptionSettingToInt(buzzerOptions, buzzerSetting) > 0 ? 1 : 0))
+}
+
+private getBuzzerModeParam() {	
+	return createConfigParamMap(4, "Buzzer Mode", 1, null, null, (convertOptionSettingToInt(buzzerOptions, buzzerSetting) ?: 3))
+}
+
+private getLifelineScenesParam() {
+	return createConfigParamMap(10, "LifeLine Scenes", 1, null, null, 63) // Send all scenes to lifeline group.
+}
+
+private getToggleModeParam() {
+	def val = 15 // Enable for all assocation groups
+	if (doubleSwipeEnabledSetting) {
+		val = 0 // Disable for all groups.
+	}
+	return createConfigParamMap(12, "Toggle Mode", 1, null, null, val)
+}
+
+
+private getParamStoredIntVal(param) {
+	return state["configVal${param.num}"]	
+}
+
+private getParamIntVal(param) {
+	return param.options ? convertOptionSettingToInt(param.options, param.val) : param.val
+}
+
+private createConfigParamMap(num, name, size, options, prefName, val=null) {
+	if (val == null) {
+		val = (settings?."${prefName}" ?: findDefaultOptionName(options))
+	}
+	return [
+		num: num, 
+		name: name, 
+		size: size, 
+		options: options, 
+		prefName: prefName,
+		val: val
+	]
+}
+
+private getGestures() {
+	def gestures = [
+		[name: "Swipe Up", sceneNum: 1, keyAttr:0, btnNum: 1, simple: true],
+		[name: "Swipe Down", sceneNum: 2, keyAttr:0, btnNum: 2, simple: true],
+		[name: "Swipe Left", sceneNum: 3, keyAttr:0, btnNum: 3, simple: true],
+		[name: "Swipe Right", sceneNum: 4, keyAttr:0, btnNum: 4, simple: true],
+		[name: "Clockwise Circle Start", sceneNum: 5, keyAttr: 2, btnNum: 5],
+		[name: "Clockwise Circle Stop", sceneNum: 5, keyAttr: 1, btnNum: 6],
+		[name: "Counter-Clockwise Circle Start", sceneNum: 6, keyAttr: 2, btnNum: 7],
+		[name: "Counter-Clockwise Circle Stop", sceneNum: 6, keyAttr: 1, btnNum: 8],
+		[name: "Double Swipe Up", sceneNum: 1, keyAttr:3, btnNum: 9],
+		[name: "Double Swipe Down", sceneNum: 2, keyAttr:3, btnNum: 10],
+		[name: "Double Swipe Left", sceneNum: 3, keyAttr:3, btnNum: 11],
+		[name: "Double Swipe Right", sceneNum: 4, keyAttr:3, btnNum: 12]
+	]
+	gestures += sequences
+	return gestures
+}
+
+private getSequences() {
+	def items = []
+	(1..6).each {
+		items << [
+			seqNum: it, 
+			name: "Sequence ${it}", 
+			sceneNum: (it + 6), 
+			keyAttr: 0, 
+			btnNum: (it + 12)
+		]
+	}
+	return items
+}
+
+// Settings
+private getCheckinIntervalSettingSeconds() {
+	return convertOptionSettingToInt(checkinIntervalOptions, checkinIntervalSetting)
+}
+
+private getCheckinIntervalSetting() {
+	return settings?.wakeUpInterval ?: findDefaultOptionName(checkinIntervalOptions)
+}
+
+private getBatteryReportingIntervalSetting() {
+	return settings?.batteryReportingInterval ?: findDefaultOptionName(checkinIntervalOptions)
+}
+
+private getDoubleSwipeEnabledSetting() {
+	return (settings?.doubleSwipeEnabled != null) ? settings?.doubleSwipeEnabled : true
+}
+
+private getBuzzerSetting() {
+	return (settings?.buzzer != null) ? settings?.buzzer : findDefaultOptionName(buzzerOptions)
+}
+
+private getDebugOutputSetting() {
+	return (settings?.debugOutput != null) ? settings?.debugOutput : true
+}
+
+private getBtnLabelSetting(btnNum) {
+	def name = "btn${btnNum}Label"
+	return (settings && settings[name] != null) ? settings[name] : ""	
+}
+
+private getSeqSetting(seqNum) {
+	def name = "seq${seqNum}"
+	return (settings && settings[name] != null) ? settings[name] : ""
+}
+
+
+private getSeqOptions() {
+	def options = ["": 0]
+	def simpleGests = gestures.findAll { it.simple }?.each { it.name = it.name.replace("Swipe ", "") }
+	
+	simpleGests.each { gest1 ->	
+		simpleGests.each { gest2 ->
+
+			if (gest1 != gest2) {
+				options << getSeqOption(gest1, gest2, null)
+			}
+		
+			simpleGests.each { gest3 ->				
+				if (gest1 != gest2 && gest2 != gest3) {				
+					options << getSeqOption(gest1, gest2, gest3)
+				}
+			}
+		}
+	}
+	return options.sort()
+}
+
+private getSeqOption(gest1, gest2, gest3) {	
+	def name = "${gest1.name} / ${gest2.name}"
+
+	if (gest3) {
+		name = "${name} / ${gest3.name}"
+	}
+	
+	def val = ((gest1.btnNum * 256) + (gest2.btnNum * 16) + (gest3?.btnNum ?: 0))
+	return ["${name}":val]
+}
+
+private getBuzzerOptions() {
+	return [
+		"Disabled": 0, 
+		"Successful Recognition": 1, 
+		"Failed Recognition": 2, 
+	 	"All Recognition${defaultOptionSuffix}": 3
+	]
+}
+
+private getCheckinIntervalOptions() {
+	return getIntervalOptions((2 * 60 * 60), [min:(5 * 60), max:(18*60*60)])
+}
+
+private getIntervalOptions(defaultVal=null, data=[:]) {
+	def options = [:]
+	def min = data?.zeroName ? 0 : (data?.min != null ? data.min : 1)
+	def max = data?.max != null ? data?.max : (9 * 60 * 60)
+	
+	[0,1,2,3,4,5,10,15,30,45].each {
+		if (withinRange(it, min, max)) {
+			if (it == 0 && data?.zeroName != null) {
+				options["${data?.zeroName}"] = it
+			}
+			else {
+				options["${it} Second${x == 1 ? '' : 's'}"] = it
+			}
+		}
+	}
+
+	[1,2,3,4,5,10,15,30,45].each {
+		if (withinRange((it * 60), min, max)) {
+			options["${it} Minute${x == 1 ? '' : 's'}"] = (it * 60)
+		}
+	}
+
+	[1,2,3,6,9,12,18].each {
+		if (withinRange((it * 60 * 60), min, max)) {
+			options["${it} Hour${x == 1 ? '' : 's'}"] = (it * 60 * 60)
+		}
+	}	
+	return setDefaultOption(options, defaultVal)
+}
+
+private withinRange(val, min, max) {
+	return ((min == null || val >= min) && (max == null || val <= max))
+}
+
+private convertOptionSettingToInt(options, settingVal) {
+	return safeToInt(options?.find { name, val -> "${settingVal}" == name }?.value, 0)
+}
+
+private setDefaultOption(options, defaultVal) {
+	def name = options.find { key, val -> val == defaultVal }?.key
+	if (name != null) {
+		return changeOptionName(options, defaultVal, "${name}${defaultOptionSuffix}")
+	}
+	else {
+		return options
+	}	
+}
+
+private changeOptionName(options, optionVal, newName) {
+	def result = [:]	
+	options?.each { name, val ->
+		if (val == optionVal) {
+			name = "${newName}"
+		}
+		result["${name}"] = val
+	}
+	return result
+}
+
+private findDefaultOptionName(options) {
+	def option = options?.find { name, val ->
+		name?.contains("${defaultOptionSuffix}") 
+	}
+	return option?.key ?: ""
+}
+
+private getDefaultOptionSuffix() {
+	return "   (Default)"
+}
+
+private logForceWakeupMessage(msg) {
+	logDebug "${msg}  You can force the device to wake up by holding your hand in front of the screen until it enters the menu and then swiping up."
+}
+
+private safeToInt(val, defaultVal=0) {
+	return "${val}"?.isInteger() ? "${val}".toInteger() : defaultVal
+}
+
+private createEventMap(name, value, displayed=null, desc=null, unit=null) {	
+	def newVal = "${value}"	
+	def isStateChange = displayed ?: (getAttrValue(name) != newVal)
+	displayed = (displayed == null ? isStateChange : displayed)
+	def eventMap = [
+		name: name,
+		value: value,
+		displayed: displayed
+	]
+	if (desc) {
+		eventMap.descriptionText = desc
+		logDebug "$desc"
+	}
+	if (unit) {
+		eventMap.unit = unit
+	}	
+	// logTrace "Creating Event: ${eventMap}"
+	return eventMap
+}
+
+private getAttrValue(attrName) {
+	try {
+		return device?.currentValue("${attrName}")
+	}
+	catch (ex) {
+		logTrace "$ex"
+		return null
+	}
+}
+
+private convertToLocalTimeString(dt) {
+	def timeZoneId = location?.timeZone?.ID
+	if (timeZoneId) {
+		return dt.format("MM/dd/yyyy hh:mm:ss a", TimeZone.getTimeZone(timeZoneId))
+	}
+	else {
+		return "$dt"
+	}	
+}
+
+private isDuplicateCommand(lastExecuted, allowedMil) {
+	!lastExecuted ? false : (lastExecuted + allowedMil > new Date().time) 
+}
+
+private logDebug(msg) {
+	if (debugOutputSetting) {
+		log.debug "$msg"
+	}
+}
+
+private logTrace(msg) {
+	// log.trace "$msg"
+}
