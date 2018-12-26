@@ -137,7 +137,7 @@ def configure() {
 	
 	sendEvent(name: "status", value: "Configuring...")
 	
-	if (getAttrValue("button") == null) {		
+	if (getAttrValue("pushable") == null) {		
 		sendEvent(name: "pushed", value: 1)
 		sendEvent(name: "numberOfButtons", value: gestures.size())
 		sendEvent(name: "holdableButton", value: false)
@@ -372,7 +372,7 @@ def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cm
 	
 	if (gesture) {
 		def status = "${gesture.name} / Button ${gesture.btnNum} Pushed"
-		result << createEvent(createEventMap("button", gesture.btnNum, true, status))
+		result << createEvent(createEventMap("pushable", gesture.btnNum, true, status))
 					
 		result << createEvent(createEventMap("status", status, false))
 		
